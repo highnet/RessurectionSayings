@@ -1,0 +1,35 @@
+## Interface: 20504
+## Title: Ressurection Sayings
+## Notes: Announces a random saying in chat when you resurrect another player.
+## Author: 
+## Version: 3.0.0
+## SavedVariables: RessurectionSayingsDB
+## X-Embeds: LibStub, CallbackHandler-1.0, AceAddon-3.0, AceEvent-3.0, AceConsole-3.0, AceDB-3.0, AceGUI-3.0, AceConfig-3.0, AceConfigRegistry-3.0, AceConfigCmd-3.0, AceConfigDialog-3.0
+
+# ── Embedded Ace3 libraries (see Libs\README.txt for download instructions) ──
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\AceAddon-3.0\AceAddon-3.0.lua
+Libs\AceEvent-3.0\AceEvent-3.0.lua
+Libs\AceConsole-3.0\AceConsole-3.0.lua
+Libs\AceDB-3.0\AceDB-3.0.lua
+Libs\AceGUI-3.0\AceGUI-3.0.lua
+Libs\AceGUI-3.0\AceGUI-3.0.xml
+Libs\AceConfig-3.0\AceConfig-3.0.lua
+Libs\AceConfig-3.0\AceConfigRegistry-3.0\AceConfigRegistry-3.0.lua
+Libs\AceConfig-3.0\AceConfigCmd-3.0\AceConfigCmd-3.0.lua
+Libs\AceConfig-3.0\AceConfigDialog-3.0\AceConfigDialog-3.0.lua
+
+# ── Addon source (order matters: each file depends on those above it) ────────
+# Core — must load first (creates the AceAddon object / global namespace)
+RessurectionSayings.lua
+
+# Modules
+Debug.lua
+SpellData.lua
+Sayings.lua
+Chat.lua
+SlashCommands.lua
+
+# GUI — AceConfigDialog panel (depends on all modules above)
+RessurectionSayings_Options.lua
