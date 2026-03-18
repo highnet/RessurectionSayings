@@ -171,6 +171,14 @@ local optTable = {
                 },
 
                 spacer1 = { order = 5, type = "description", name = "\n" },
+
+                creditsHeader = { order = 6, type = "header", name = "Credits" },
+                credits = {
+                    order    = 7,
+                    type     = "description",
+                    fontSize = "small",
+                    name     = "|cffffff00Gitmerge|r — Thunderstrike EU",
+                },
             },
         },
 
