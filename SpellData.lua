@@ -26,9 +26,6 @@ local SPELL_CLASS = {
     [20484] = "Druid",   [20739] = "Druid",   [20742] = "Druid",
     [20745] = "Druid",   [20747] = "Druid",   [26994] = "Druid",
 
-    -- ── Warlock: Soulstone Resurrection (Ranks 1–6) ──────────────────────────
-    [20707] = "Warlock", [20762] = "Warlock", [20763] = "Warlock",
-    [20764] = "Warlock", [20765] = "Warlock", [27239] = "Warlock",
 }
 
 --- Returns true when spellID is a known resurrection spell.

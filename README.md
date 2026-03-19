@@ -27,7 +27,7 @@ A World of Warcraft TBC Classic Anniversary addon that automatically announces a
 | Paladin | Redemption (Ranks 1–6) |
 | Shaman | Ancestral Spirit (Ranks 1–6) |
 | Druid | Rebirth (Ranks 1–6, combat rez) |
-| Warlock | Soulstone Resurrection (Ranks 1–6) |
+
 
 ---
 
