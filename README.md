@@ -12,7 +12,7 @@ A World of Warcraft TBC Classic Anniversary addon that automatically announces a
 
 - Triggers on **cast start** of any resurrection spell, capturing the target before they release.
 - Chooses a saying from the **target's class pool** — Warriors get warrior jokes, Paladins get bubble jokes, and so on.
-- **18 built-in sayings per class** (9 classes covered: Warrior, Paladin, Priest, Druid, Shaman, Warlock, Mage, Hunter, Rogue).
+- **Built-in sayings per class** (All classes covered).
 - **`{name}` substitution** — every saying can include `{name}`, which is replaced with the target player's name at cast time.
 - **Fully editable** via a GUI options panel — edit, add, or remove individual sayings per class without touching any files.
 - At least one saying per class is always enforced — the last remaining saying cannot be deleted.
