@@ -166,6 +166,32 @@ Library source: [Ace3 on CurseForge](https://www.curseforge.com/wow/addons/ace3)
 
 ---
 
+## Exporting
+
+A PowerShell script (`export.ps1`) is included to package the addon as a zip file, excluding the `.git` folder and the script itself.
+
+**Run from the addon directory:**
+
+```powershell
+.\export.ps1
+```
+
+This produces `RessurectionSayings.zip` in the parent (`AddOns`) folder.
+
+**Custom output location:**
+
+```powershell
+.\export.ps1 -Destination "C:\Users\you\Desktop"
+```
+
+If you get a script execution policy error, run this once:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+---
+
 ## Credits
 
 - **Gitmerge** — Thunderstrike EU
