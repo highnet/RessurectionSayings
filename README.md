@@ -120,18 +120,31 @@ RessurectionSayings/
 ├── SlashCommands.lua                # /rs command handler
 ├── Chat.lua                         # Output helpers (say / emote / local / print)
 ├── Debug.lua                        # Debug logging + SafeCall error wrapper
-└── Libs/                            # Embedded Ace3 libraries
-    ├── LibStub/
-    ├── CallbackHandler-1.0/
-    ├── AceAddon-3.0/
-    ├── AceEvent-3.0/
-    ├── AceConsole-3.0/
-    ├── AceDB-3.0/
-    ├── AceGUI-3.0/
-    └── AceConfig-3.0/
-        ├── AceConfigRegistry-3.0/
-        ├── AceConfigCmd-3.0/
-        └── AceConfigDialog-3.0/
+├── Libs/                            # Embedded Ace3 libraries
+│   ├── LibStub/
+│   ├── CallbackHandler-1.0/
+│   ├── AceAddon-3.0/
+│   ├── AceEvent-3.0/
+│   ├── AceConsole-3.0/
+│   ├── AceDB-3.0/
+│   ├── AceGUI-3.0/
+│   └── AceConfig-3.0/
+│       ├── AceConfigRegistry-3.0/
+│       ├── AceConfigCmd-3.0/
+│       └── AceConfigDialog-3.0/
+│
+│   ── Dev tooling (not included in the exported zip) ──
+├── run.ps1                          # Centralized task CLI (lint / test / coverage / export)
+├── export.ps1                       # Packages the addon as a distributable zip
+├── .luacheckrc                      # luacheck static analysis config
+├── .busted                          # busted test runner config
+├── .luacov                          # luacov coverage config
+├── .vscode/tasks.json               # VS Code task shortcuts
+└── tests/
+    ├── bootstrap.lua                # WoW API stubs + module loader for tests
+    ├── test_sayings.lua             # Tests for Sayings.lua
+    ├── test_chat.lua                # Tests for Chat.lua
+    └── test_debug.lua              # Tests for Debug.lua
 ```
 
 ---
@@ -166,9 +179,67 @@ Library source: [Ace3 on CurseForge](https://www.curseforge.com/wow/addons/ace3)
 
 ---
 
+## Development
+
+A local dev toolchain is included for linting, testing, and coverage. It requires [Scoop](https://scoop.sh/), Lua 5.4, LuaRocks, and the packages `luacheck`, `busted`, and `luacov`.
+
+### Task runner
+
+All tasks are accessible through `run.ps1`:
+
+```powershell
+.\run.ps1 lint       # Static analysis with luacheck (0 warnings target)
+.\run.ps1 test       # Run test suite with busted
+.\run.ps1 coverage   # Tests + luacov coverage report
+.\run.ps1 export     # Package addon into a distributable zip
+.\run.ps1 all        # lint + test
+```
+
+VS Code users can also run these via **Terminal → Run Task** (Lint, Test, Coverage, Export).
+
+### Tests
+
+Tests live in `tests/` and use the [busted](https://lunarmodules.github.io/busted/) BDD framework. `tests/bootstrap.lua` stubs all WoW API globals and loads the addon modules so they can be tested outside the game.
+
+```
+tests/
+├── bootstrap.lua       WoW API stubs + module loader
+├── test_sayings.lua    Saying pools, mutations, {name} substitution
+├── test_chat.lua       Channel dispatch, print helpers, error handling
+└── test_debug.lua      SafeCall, Msg, Assert
+```
+
+Run from the addon root:
+
+```powershell
+.\run.ps1 test
+# or directly:
+busted
+```
+
+### Linting
+
+[luacheck](https://luacheck.readthedocs.io/) is configured via `.luacheckrc` to target Lua 5.1 (the WoW runtime) with all WoW API globals whitelisted. The `Libs/` and `tests/` folders are excluded.
+
+```powershell
+.\run.ps1 lint
+# or directly:
+luacheck .
+```
+
+### Coverage
+
+Coverage is measured with [luacov](https://lunarmodules.github.io/luacov/) and reported after `busted --coverage` runs:
+
+```powershell
+.\run.ps1 coverage
+```
+
+---
+
 ## Exporting
 
-A PowerShell script (`export.ps1`) is included to package the addon as a zip file, excluding the `.git` folder and the script itself.
+A PowerShell script (`export.ps1`) packages the addon as a zip, excluding all dev-only files and folders (`.git`, `.vscode`, `tests/`, `run.ps1`, `.luacheckrc`, `.busted`, `.luacov`, and any `luacov.*.out` files).
 
 **Run from the addon directory:**
 

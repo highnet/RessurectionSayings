@@ -1,0 +1,26 @@
+-- .luacov
+-- luacov configuration for RessurectionSayings.
+-- Generates luacov.report.out after running: busted --coverage tests/
+
+return {
+    -- Only report coverage for our own source files.
+    include = {
+        "Chat",
+        "Debug",
+        "Sayings",
+        "SlashCommands",
+        "SpellData",
+        "RessurectionSayings_Options",
+    },
+
+    -- Exclude third-party libs and the tests themselves.
+    exclude = {
+        "tests/.*",
+        "Libs/.*",
+        "luacov",
+    },
+
+    -- Where to write the stats file (consumed by the reporter).
+    statsfile  = "luacov.stats.out",
+    reportfile = "luacov.report.out",
+}

@@ -1,0 +1,11 @@
+-- .busted
+-- busted configuration for RessurectionSayings.
+-- Run tests from the addon root with: busted
+
+return {
+    default = {
+        verbose  = true,
+        pattern  = "test_",
+        ROOT     = { "tests/" },
+    },
+}

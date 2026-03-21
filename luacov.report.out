@@ -1,0 +1,473 @@
+==============================================================================
+Chat.lua
+==============================================================================
+    -- Chat.lua
+    -- Addon print helpers and in-world chat dispatch (SAY / EMOTE / LOCAL).
+    -- Depends on: RessurectionSayings.lua (Core), Debug.lua
+
+  3 local RS = RessurectionSayings
+
+  3 RS.Chat = {}
+  3 local C = RS.Chat
+
+    -- Colour codes
+  3 local CLR_ADDON = "|cff00ccff"   -- cyan
+  3 local CLR_RESET = "|r"
+  3 local CLR_WARN  = "|cffffff00"   -- yellow
+  3 local CLR_ERR   = "|cffff4444"   -- red
+  3 local TAG       = CLR_ADDON .. "[RS]" .. CLR_RESET .. " "
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Local print helpers  (never visible to other players)
+    -- ─────────────────────────────────────────────────────────────────────────────
+
+    --- Prints a formatted addon message to the local chat frame.
+    --- @param msg string
+  3 function C.Print(msg)
+  7     print(TAG .. tostring(msg))
+    end
+
+    --- Printf-style wrapper around C.Print.
+    --- @param fmt string
+  3 function C.Printf(fmt, ...)
+  1     C.Print(fmt:format(...))
+    end
+
+    --- Prints a yellow warning to local chat.
+    --- @param msg string
+  3 function C.Warn(msg)
+  1     C.Print(CLR_WARN .. tostring(msg) .. CLR_RESET)
+    end
+
+    --- Prints a red error to local chat.
+    --- @param msg string
+  3 function C.Error(msg)
+  3     C.Print(CLR_ERR .. tostring(msg) .. CLR_RESET)
+    end
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Channel definitions  (used by Options panel, SlashCommands, and Speak)
+    -- ─────────────────────────────────────────────────────────────────────────────
+  3 C.CHANNELS = {
+  3     { value = "SAY",   label = "/say  (visible to nearby players)" },
+  3     { value = "EMOTE", label = "/emote" },
+  3     { value = "LOCAL", label = "Local chat frame only" },
+  3 }
+
+    -- Fast lookup table built from C.CHANNELS
+  3 local VALID_CHANNEL = {}
+ 12 for _, ch in ipairs(C.CHANNELS) do
+  9     VALID_CHANNEL[ch.value] = true
+    end
+
+    --- Returns the human-readable label for the given channel value, or nil.
+    --- @param value string
+    --- @return string|nil
+  3 function C.GetChannelLabel(value)
+ 14     for _, ch in ipairs(C.CHANNELS) do
+ 12         if ch.value == value then return ch.label end
+        end
+    end
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Speak  —  sends a saying through the player's configured output channel
+    -- ─────────────────────────────────────────────────────────────────────────────
+
+    --- Sends `saying` through the channel stored in RS.db.channel.
+    --- Falls back gracefully on invalid channel values or API errors.
+    --- @param saying string
+  3 function C.Speak(saying)
+  9     if type(saying) ~= "string" or saying == "" then
+  3         RS.Debug.Msg("Chat.Speak: empty or non-string saying — skipped.")
+  3         return
+        end
+
+  6     local ch = (RS.db and RS.db.profile and RS.db.profile.channel) or "SAY"
+
+  6     if not VALID_CHANNEL[ch] then
+  1         C.Error(("Unknown channel '%s'; reverting to SAY."):format(ch))
+  1         if RS.db then RS.db.profile.channel = "SAY" end
+  1         ch = "SAY"
+        end
+
+  6     if ch == "LOCAL" then
+  1         C.Print(saying)
+  1         return
+        end
+
+        -- Wrap Blizzard's API in pcall — it can fail in some edge cases
+        -- (e.g. player is not yet fully in world, or instance restrictions).
+  5     local ok, err = pcall(SendChatMessage, saying, ch)
+  5     if not ok then
+  1         C.Error(("Could not send message [channel=%s]: %s"):format(ch, tostring(err)))
+  1         RS.Debug.Msg("Chat.Speak pcall error: " .. tostring(err))
+        end
+    end
+
+==============================================================================
+Debug.lua
+==============================================================================
+    -- Debug.lua
+    -- Error handling, xpcall-based safe calls, and conditional debug output.
+    -- Depends on: RessurectionSayings.lua (Core)
+
+  3 local RS = RessurectionSayings
+
+  3 RS.Debug = {}
+  3 local D = RS.Debug
+
+  3 local ERR_PREFIX  = "|cffff4444[RS Error]|r"
+  3 local DBG_PREFIX  = "|cffffff00[RS Debug]|r"
+  3 local STACK_LINES = 12   -- max lines of stack trace to display
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Internal error handler  (passed to xpcall)
+    -- ─────────────────────────────────────────────────────────────────────────────
+    local function OnError(err)
+  6     local msg   = tostring(err)
+  6     local trace = debugstack(2, STACK_LINES, 3)
+
+  6     print(ERR_PREFIX .. " " .. msg)
+
+  6     if RS.db and RS.db.profile and RS.db.profile.debug then
+**0         print(DBG_PREFIX .. " Stack trace:")
+**0         for line in trace:gmatch("[^\n]+") do
+**0             if line:match("%S") then
+**0                 print("   " .. line)
+                end
+            end
+        else
+ 12         print(ERR_PREFIX
+  6             .. " Use |cffffff00/rs debug on|r to see the full stack trace next time.")
+        end
+
+  6     return msg
+    end
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- SafeCall  —  wraps any function in xpcall; prints errors automatically.
+    -- Returns: ok (bool), result-or-errorMessage
+    -- ─────────────────────────────────────────────────────────────────────────────
+  3 function D.SafeCall(fn, ...)
+  6     if type(fn) ~= "function" then
+  2         print(ERR_PREFIX .. " SafeCall: expected function, got " .. type(fn))
+  2         return false, nil
+        end
+  4     return xpcall(fn, OnError, ...)
+    end
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Msg  —  prints to chat only when /rs debug on is active
+    -- ─────────────────────────────────────────────────────────────────────────────
+  3 function D.Msg(msg)
+ 17     if RS.db and RS.db.profile and RS.db.profile.debug then
+  2         print(DBG_PREFIX .. " " .. tostring(msg))
+        end
+    end
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Assert  —  fires OnError (and returns false) when condition is falsy
+    -- ─────────────────────────────────────────────────────────────────────────────
+  3 function D.Assert(condition, msg)
+  6     if not condition then
+  4         OnError(msg or "Assertion failed")
+  4         return false
+        end
+  2     return true
+    end
+
+==============================================================================
+Sayings.lua
+==============================================================================
+    -- Sayings.lua
+    -- Built-in per-class saying pools and per-class DB overrides.
+    -- Sayings may contain {name} which is replaced with the target player's name.
+    -- Depends on: RessurectionSayings.lua (Core), Debug.lua
+
+  3 local RS = RessurectionSayings
+
+  3 RS.Sayings = {}
+  3 local S = RS.Sayings
+
+    -- (S.DEFAULTS removed — sayings are always class-specific)
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Generic defaults  (used when no custom sayings are set AND no class match)
+    -- {name} is replaced at run-time with the target player’s name.
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Class-specific sayings
+    -- Keys match UnitClass("target") classFile strings (always English, uppercase).
+    -- ─────────────────────────────────────────────────────────────────────────────
+  3 S.CLASS_SAYINGS = {
+
+  3     WARRIOR = {
+  3         "Up you get, {name}! Your rage bar missed you.",
+  3         "{name} tried a bold new strategy called 'floor inspection'. Back to the old ways!",
+  3         "Back on your feet, {name}! Even fire has trouble keeping a good warrior down.",
+  3         "A warrior on the ground? Don't worry, {name} — we've all been there!",
+  3         "Rise, {name}! Berserker Rage doesn't rage-quit for you.",
+  3         "{name} has more armour than a siege engine and still found a creative way down. Impressive!",
+  3         "Back from death, {name}! Intercept right back into the action!",
+  3         "Shield Wall is your best friend, {name}! Let's introduce you two properly.",
+  3         "Back on your feet, {name}! Round two is going to go much better, we can feel it!",
+  3         "{name} stood in fire. In full plate. Screaming. A true legend.",
+  3         "You lived, you charged, you adventured, {name}! Very classic warrior energy.",
+  3         "Rise, {name}! Next fireball — just duck a little!",
+  3         "{name} has the health pool of a small ocean! Today the ocean had a big wave.",
+  3         "Last Stand: a classic! Next time just stand a bit more, {name}!",
+            "The tank took a tumble and the tank is back! All according to plan.",
+  3     },
+
+  3     PALADIN = {
+  3         "{name}, you have a bubble! That is precisely what bubbles are for — use it next time!",
+  3         "Rise, {name}! Lay on Hands is the ultimate self-care. Treat yourself!",
+  3         "{name} is back! Divine Shield is exactly the kind of trick to keep in mind for the next big moment!",
+  3         "The Light has returned {name}\226\128\166 warmly and with open arms.",
+  3         "Even paladins need a rest sometimes, {name}! Rise well, fight stronger.",
+  3         "{name} had a bubble, a heal, and a pony. Truly a champion of the Light!",
+  3         "Holy Light heals others AND you, {name}! Two blessings for the price of one.",
+  3         "The Light provides for all, {name}! Including a second chance right now.",
+  3         "{name} bubbled into a wall. The creativity is truly something to behold.",
+  3         "I just rezzed a paladin — the holiest of rezzes for the holiest of heroes, {name}!",
+  3         "A paladin, a priest, and a shaman walk into a bar. {name} walks out victorious!",
+  3         "Rise, {name}! Those Judgements aren't going to cast themselves.",
+  3         "Rise, {name}! Lay on Hands is always worth keeping in mind — the ultimate backup plan!",
+  3         "{name} screamed 'FOR THE LIGHT!' and the Light answered with a prompt resurrection.",
+            "Consecration is a great move, {name}! Just remember to step out of your own circle.",
+  3     },
+
+  3     PRIEST = {
+  3         "Even the best healers need a hand sometimes, {name}! That is just great teamwork.",
+  3         "{name}, we look out for each other here! Now get back out there!",
+  3         "Rise, {name}! Desperate Prayer is a great trick to keep up your sleeve.",
+  3         "I just resurrected a priest! The circle of healing is complete, {name}!",
+  3         "Back to life, {name}! Fade is a great trick — keep it ready for next time.",
+  3         "{name} is back! There is something wonderfully poetic about a resurrector returning.",
+  3         "Inner Fire burns bright in {name}! Let's keep that flame going this time.",
+  3         "Power Word: Shield for yourself next time too, {name}! Self-care is important.",
+  3         "{name} dispelled everyone's debuffs like an absolute champion! Next time: self-dispel too.",
+  3         "Rise, {name}! Get a Renew ticking and you are good to go.",
+  3         "{name} said 'I'll be fine' — and look, you are fine! Right back at it.",
+  3         "Vampiric Embrace is a wonderful lifeline, {name}! Go get some hits in.",
+  3         "Flash Heal is speedy, {name}! Let's use that speed for some big heals this time.",
+  3         "{name} kept the whole team alive — legendary work! Your turn to be kept alive now.",
+  3         "Up you go, {name}! Heaven sent you back with a smile.",
+            "Spirit of Redemption is a lovely look, {name}, but we need that healing touch back!",
+  3     },
+
+  3     DRUID = {
+  3         "Rise, {name}! Barkskin is a great one to keep in mind for exactly this kind of situation.",
+  3         "Back from a quick nap, {name}! Next time, shapeshift into an even tougher form.",
+  3         "I just rezzed a druid! The circle of life continues, {name}!",
+  3         "Nature called {name} home for a brief visit. Welcome back to the adventure!",
+  3         "{name} was on a very scenic detour in travel form. Glad you found your way back!",
+  3         "Rebirth is a powerful gift, {name}. The forest breathes anew.",
+  3         "Nature offers many paths, {name}. Let's take the one marked 'staying alive'!",
+  3         "{name} discovered an advanced druid technique: the dramatic floor sprawl. Very bold.",
+  3         "The balance of nature swings back, {name}! You are right where you belong.",
+  3         "{name} has unlocked a new form. We call it 'getting back up form'. Very powerful.",
+  3         "Nature's Grasp, Entangling Roots, Cyclone — {name} has so many great options for next time!",
+            "Up, {name}! The forest and the raid both need you back.",
+  3     },
+
+  3     SHAMAN = {
+  3         "{name} gets to save their ankh for next time! That is what friends are for.",
+  3         "Rise, {name}! Reincarnation is always an option — this time I just got here first.",
+  3         "{name} is back! The ancestors nod with great pride and wisdom.",
+  3         "Back on your feet, {name}! Teamwork makes the dream work.",
+  3         "Welcome back, {name}! Reincarnation is a fantastic trick to have ready for the next big adventure.",
+  3         "{name} dropped every totem and fought bravely. Time for round two!",
+  3         "Earth Shield, Water Shield, Lightning Shield — so many great choices, {name}! A true feast of options.",
+  3         "Ghost Wolf is lightning fast, {name}! Even lightning meets its match sometimes.",
+  3         "The elements are a wild and wonderful force, {name}! Even the best shamans ride the big waves.",
+  3         "{name}'s ankh is on cooldown — good thing friends are always available!",
+  3         "Rise, {name}! Stoneclaw Totem is a great distraction tool to keep handy.",
+  3         "Tremor Totem is your guardian against fear, {name}! You are back and absolutely fearless.",
+  3         "Healing Stream Totem is right here for you, {name}! Come stand a little closer next time.",
+  3         "Purge clears the path to victory, {name}! Now let's clear all the way to the boss.",
+  3         "The ancestors offer wisdom, warm welcomes, and great pride for returning heroes, {name}!",
+  3         "Heroism was pumping, {name}! An exciting round — ready for an even better one?",
+            "Chain Heal is bouncing through the whole group, {name}! Glad to bounce you back in too.",
+  3     },
+
+  3     WARLOCK = {
+  3         "{name} is back! Soulstone or not, nothing keeps a warlock down for long.",
+  3         "Rise, {name}! Your Voidwalker has been loyally standing guard right here.",
+  3         "{name} is back! The dark pact comes with solid benefits — like a good resurrection.",
+  3         "Back from the abyss, {name}! Life Tap is a great finisher when you need that last burst.",
+  3         "I rezzed {name}! Soulstone cooldowns happen to everyone. That is what guildmates are for.",
+  3         "{name} charged into battle valiantly and now charges back in! Absolutely unstoppable.",
+  3         "Healthstone is a gift from yourself to yourself, {name} — keep one handy at all times!",
+  3         "The Twisting Nether called and we answered on {name}'s behalf. You are very welcome.",
+  3         "Curse of Recklessness on the mobs, bold adventures for {name} — same great energy!",
+            "Rise, {name}! Dark magic, demonic pacts, and one very dedicated friend with a resurrection.",
+  3     },
+
+  3     MAGE = {
+  3         "{name}, what a chase! Blink and Ice Block are wonderful tools to keep in mind for round two.",
+  3         "Rise, {name}! Ice Block is a cosy option, but walking around is even better.",
+  3         "Back to life, {name}! Blinking away from danger is very much on the menu this time.",
+  3         "A Mage returns! {name} is back and the DPS is back on track!",
+  3         "{name} conjured food, conjured water, and conjured a magnificent comeback!",
+  3         "Frost Nova, Blink, Ice Block — {name} has a whole toolkit of great options for next time!",
+  3         "Counterspell is a fantastic tool, {name}! Nothing gets through when you use it.",
+  3         "Mana Shield is a powerful barrier, {name}! Keep it in mind for the next big moment.",
+  3         "Rise, {name}! The refreshment table is still here. Grab a mana biscuit, you have earned it.",
+            "Evocation is a great trick, {name}! Channel that mana — then channel some victory.",
+  3     },
+
+  3     HUNTER = {
+  3         "Rise, {name}! Feign Death only fools the mobs, not the combat log.",
+  3         "{name} tried Feign Death and it almost worked. Welcome back to the real version!",
+  3         "Back on your feet, {name}! Your loyal pet never doubted you for a single second.",
+  3         "{name} is up! Aspect of the Cheetah will carry them safely away next time!",
+  3         "I rezzed {name}! Don't worry about the ammo — we have plenty of adventure ahead.",
+  3         "{name}'s pet held the line loyally. A true dynamic duo!",
+  3         "The Deadzone is a tricky spot, {name}! You have helpfully mapped it for the rest of us.",
+  3         "{name} pulled with Multi-Shot — chaotic, bold, and very on-brand. A true Hunter moment!",
+  3         "Rise, {name}! You and your pet are the best duo in the whole raid.",
+            "Misdirection redirected right into {name}'s triumphant return! Welcome back!",
+  3     },
+
+  3     ROGUE = {
+  3         "{name} staged an elaborate decoy and now makes a dramatic surprise return! Perfect.",
+  3         "Rise, {name}! Vanish resets everything — time for an even better approach.",
+  3         "Back from the shadows, {name}! The element of surprise is fully restored.",
+  3         "I rezzed {name}! Pure vibes as a strategy is bold and honestly very on-brand.",
+  3         "Evasion gives 50% dodge, {name}! The other 50% is basically a bonus challenge.",
+  3         "Cloak of Shadows is your secret weapon, {name}! Keep it in mind for the next tricky moment.",
+  3         "Preparation resets cooldowns, {name}! Consider this a full cooldown reset on the whole adventure.",
+  3         "Kick is a great interrupt, {name}! Nothing gets through when you use it.",
+  3         "{name} came in with 5 combo points of pure experience! Right back at it.",
+            "Sprint is a great escape move, {name}! Keep it in mind to dart away from danger next time!",
+  3     },
+  3 }
+
+    -- ─────────────────────────────────────────────────────────────────────────────
+    -- Helpers
+    -- ─────────────────────────────────────────────────────────────────────────────
+
+    --- Substitutes {name} in a saying template with the given player name.
+    --- @param template string
+    --- @param name string
+    --- @return string
+    local function ApplyName(template, name)
+  3     return (template:gsub("{name}", name or "someone"))
+    end
+
+    --- Private: ensure the DB has an editable copy of classFile's pool.
+  3 function S._ensureDBCopy(classFile)
+  8     if not RS.db then return end
+  8     if not RS.db.profile.classSayings then RS.db.profile.classSayings = {} end
+  8     if not RS.db.profile.classSayings[classFile] then
+  5         local src = S.CLASS_SAYINGS[classFile] or {}
+  5         local copy = {}
+ 80         for i, s in ipairs(src) do copy[i] = s end
+  5         RS.db.profile.classSayings[classFile] = copy
+        end
+    end
+
+    --- Returns the effective saying pool for a class (DB overrides or built-ins).
+    --- Returns the DB copy whenever one exists (even if empty), so that
+    --- "user removed everything" is honoured instead of falling back to built-ins.
+    --- @param classFile string
+    --- @return table
+  3 function S.GetClassPool(classFile)
+ 12     local db = RS.db and RS.db.profile and RS.db.profile.classSayings
+ 12     if db and db[classFile] ~= nil then
+  5         return db[classFile]   -- may be empty {}; caller must handle that
+        end
+  7     return S.CLASS_SAYINGS[classFile]
+    end
+
+    --- Returns the saying at index for a given class.
+    --- @param classFile string
+    --- @param index number
+    --- @return string
+  3 function S.GetClassSaying(classFile, index)
+  3     local pool = S.GetClassPool(classFile)
+  3     return pool and pool[index] or ""
+    end
+
+    --- Persists a single saying edit, copying built-in pool into DB on first edit.
+    --- Passing an empty/blank string REMOVES that slot and compacts the array.
+    --- @param classFile string
+    --- @param index number
+    --- @param text string
+  3 function S.SetClassSaying(classFile, index, text)
+  6     if not RS.db then return end
+  5     S._ensureDBCopy(classFile)
+  5     local pool = RS.db.profile.classSayings[classFile]
+  5     text = text:match("^%s*(.-)%s*$")
+  5     if text == "" then
+  2         if index >= 1 and index <= #pool then
+  2             if #pool <= 1 then
+  1                 RS.Debug.Msg("Sayings.Remove: refused — must keep at least 1 saying.")
+  1                 return
+                end
+  1             RS.Debug.Msg(("Sayings.Remove [%s][#%d]: '%s'"):format(classFile, index, pool[index]))
+  1             table.remove(pool, index)
+            end
+        else
+  3         if #text > 255 then text = text:sub(1, 255) end
+  3         pool[index] = text
+  3         RS.Debug.Msg(("Sayings.Set [%s][%d]: '%s'"):format(classFile, index, text))
+        end
+    end
+
+    --- Resets all sayings for a class to built-in defaults.
+    --- @param classFile string
+  3 function S.ResetClass(classFile)
+  3     if RS.db and RS.db.profile and RS.db.profile.classSayings then
+  2         RS.db.profile.classSayings[classFile] = nil
+        end
+  3     RS.Debug.Msg("Sayings.ResetClass: " .. classFile .. " reset to defaults.")
+    end
+
+    --- Appends a new saying to the class pool (ensures DB copy exists first).
+    --- @param classFile string
+    --- @param text string
+    --- @return ok boolean, err string|nil
+  3 function S.AddClassSaying(classFile, text)
+  5     if not RS.db then return false, "DB not ready." end
+  4     text = text:match("^%s*(.-)%s*$")
+  4     if text == "" then return false, "Saying cannot be empty." end
+  2     if #text > 255 then return false, ("Too long (%d chars, max 255)."):format(#text) end
+  1     S._ensureDBCopy(classFile)
+  1     table.insert(RS.db.profile.classSayings[classFile], text)
+  1     local n = #RS.db.profile.classSayings[classFile]
+  1     RS.Debug.Msg(("Sayings.Add [%s][#%d]: '%s'"):format(classFile, n, text))
+  1     return true, n
+    end
+
+
+
+    --- Returns a random saying for the given target name and class.
+    --- @param name      string|nil
+    --- @param classFile string|nil
+    --- @return string
+  3 function S.GetRandom(name, classFile)
+  6     local pool = classFile and S.GetClassPool(classFile)
+  6     if not pool or #pool == 0 then return "" end
+  3     return ApplyName(pool[math.random(#pool)], name)
+    end
+    --[[ stale content removed:
+    — -- ─────────────────────────────────────────────────────────────────────────────
+    -- Mutation helpers  (always operate on RS.db.customSayings)
+    -- ─────────────────────────────────────────────────────────────────────────────
+
+
+                ("Invalid index %s — valid range is 1–%d."
+    ]]
+
+==============================================================================
+Summary
+==============================================================================
+
+File        Hits Missed Coverage
+--------------------------------
+Chat.lua    43   0      100.00%
+Debug.lua   26   4      86.67%
+Sayings.lua 179  0      100.00%
+--------------------------------
+Total       248  4      98.41%

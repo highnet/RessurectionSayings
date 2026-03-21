@@ -83,7 +83,7 @@ COMMANDS = {
             if arg and arg ~= "" then
                 classFile = arg:upper()
             else
-                _, classFile = UnitClass("player")
+                classFile = select(2, UnitClass("player"))
             end
             if not classFile or not RS.Sayings.CLASS_SAYINGS[classFile] then
                 W("Unknown class '" .. tostring(arg) .. "'.  Try: warrior, paladin, priest, druid, shaman, warlock, mage, hunter, rogue")
