@@ -12,12 +12,10 @@ $ZipPath   = Join-Path $Destination "$AddonName.zip"
 $TempDir   = Join-Path $env:TEMP "RS_export_temp"
 $StagingDir = Join-Path $TempDir $AddonName
 
-# Copy the whole folder into a named staging subfolder, then remove excluded items
+# Copy into staging, excluding .git and export.ps1 from the start
 if (Test-Path $TempDir) { Remove-Item -Recurse -Force $TempDir }
-Copy-Item -Path $Source -Destination $StagingDir -Recurse
-
-Remove-Item -Recurse -Force (Join-Path $StagingDir ".git") -ErrorAction SilentlyContinue
-Remove-Item -Force (Join-Path $StagingDir "export.ps1") -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $StagingDir | Out-Null
+robocopy $Source $StagingDir /E /XD ".git" /XF "export.ps1" | Out-Null
 
 # Zip the named folder so the archive contains RessurectionSayings/ at the root
 if (Test-Path $ZipPath) { Remove-Item -Force $ZipPath }
